@@ -1,1 +1,1 @@
-# uob-msc
+# uob-nuclear-msc
