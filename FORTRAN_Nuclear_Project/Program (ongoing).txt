@@ -1,0 +1,55 @@
+      program main
+      implicit none
+
+c Define variables
+      integer asize, x, nline
+      character(len=20) outfname !represents the output file name
+      character(len=20) infname !represents input file name
+      parameter (asize=101) !Sets the maximum array size !!Can be changed
+
+c Generate arrays and define variables (from fuel outward)
+      double precision qhg(1:asize), z(1:asize) !Need to set z(1) to 0
+      double precision settingreactortype, deltaz
+      double precision tfuel_max(1:asize), tfuel_out(1:asize)
+      double precision tclad_in(1:asize), tclad_out(1:asize)
+      double precision t_cool(0:asize), flux(1:asize)
+      common /lines/ nline !shares the number of read lines from input file
+      z(1) = 0.0
+
+c Write program information
+      write (*,*) 'By Benjamin Crump for MSc PTNR Fortran Assessment'
+      write (*,'(/A,I4)') 'This program is designed to calculate,'//
+     & ' coolant, outer cladding, and maximum fuel temperatures as'//
+     & ' a function of position along an AGR or PWR fuel channel for'//
+     & ' a given flux profile of single column, double precision'//
+     & ' values of number of rows (which may be altered within the'//
+     & ' program) =', asize
+
+c Subroutine to read the input flux file and error trap. 
+      call initialiseinputfile(asize,flux,infname)
+
+c Initialise output file.
+      call initialiseoutputfile(outfname)
+
+c Function to allow the user to select the reactor, error trap the input, 
+c fetch the parameters for the selected reactor, fetch material parameters,
+c share correct parameters with calculation subroutines, and finally bring 
+c in the relevant inlet coolant temperature.
+      t_cool(0) = settingreactortype(deltaz)
+
+c Now doing the required calculations through a single subroutine.
+c Within that subroutine are further subroutines which caluclate the variables
+
+      do x = 1, nline !uses the counted number of lines and loops
+         call heightincrements(z(x),z(x+1)) !Sets the respective heights
+         call heatgen(flux(x),qhg(x)) !Gets the heat generation q'''
+         call coolanttemp(t_cool(x-1),t_cool(x),qhg(x)) !Gets the coolant temp
+         call claddingout(t_cool(x),tclad_out(x),qhg(x)) !Gets cladding out temp
+         call claddingin(tclad_out(x),tclad_in(x),qhg(x)) !Gets clad inner temp
+         call fuelout(tclad_in(x),tfuel_out(x),qhg(x)) !Gets fuel outer temp
+         call fuelint(tfuel_out(x),tfuel_max(x),qhg(x)) !Gets fuel max temp
+         call writeout(z(x),t_cool(x),tclad_out(x),tfuel_max(x)) !writes data
+      end do
+      close(12)
+      write(*,*)'File saved within directory under given name'
+      end program

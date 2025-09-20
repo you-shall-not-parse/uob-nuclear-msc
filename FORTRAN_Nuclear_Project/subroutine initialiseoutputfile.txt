@@ -1,0 +1,10 @@
+      subroutine initialiseoutputfile(outfname)
+      character(len=20) outfname
+      write (*,'(A/)') 'Enter the desired output filename with file' //
+     & ' extension (.txt or other desired) this file will contain' //
+     & ' the flux, height and associated temperature information:'
+      read *, outfname !allows user to specify name of output file
+      open (12, file=outfname, status='new', action='write')
+      write (12,*) 'Height (m)',' Coolant Temp (DegC)'
+     & ,' Outer Clad Temp (DegC)',' Max Fuel Temp (DegC)'!Writes the headers
+      end subroutine

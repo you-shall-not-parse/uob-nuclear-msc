@@ -1,0 +1,5 @@
+      subroutine claddingout(tcool,tcladout,qhg)
+      implicit double precision (A-Z)
+      common /tclad/ kc, claddia, hc !kc not used
+      tcladout = tcool+qhg/hc/claddia !Main Calculation
+      end subroutine

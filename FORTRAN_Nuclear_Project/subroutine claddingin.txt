@@ -1,0 +1,7 @@
+      subroutine claddingin(tcladout,tcladin,qhg)
+      implicit double precision (A-Z)
+      common /tclad/ kc, claddia, hc !hc not used
+      common /tfuel/ hg, df, kf, dh !Just df used
+      fuelouterminusinnerln = log(claddia/df)
+      tcladin = tcladout+qhg/(2.0*kc)*fuelouterminusinnerln !Main Calculation
+      end subroutine

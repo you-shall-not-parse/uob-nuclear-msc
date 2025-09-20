@@ -1,0 +1,10 @@
+      subroutine fuelint(tfuelout,tfuelmax,qhg)
+      implicit double precision (A-Z)
+      common /tfuel/ hg, df, kf, dh !hg not used
+      if (dh.ne.0.0) then !Avoid dividing by 0 within the log (would be INF)
+         dhdfprevent = dh**2/(df**2-dh**2)*log(df/dh)
+      else
+         dhdfprevent = 0
+      end if
+      tfuelmax = tfuelout-0.5*(dhdfprevent-0.5)*qhg/kf !Main Calculation
+      end subroutine

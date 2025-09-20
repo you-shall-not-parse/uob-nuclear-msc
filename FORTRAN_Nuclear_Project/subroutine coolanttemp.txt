@@ -1,0 +1,6 @@
+      subroutine coolanttemp(tcoolz,tcooldzz,qhg)
+      implicit double precision (A-Z)
+      parameter(pi=3.1459265)
+      common /t_cool/ tin, mdot, cp, deltaz
+      tcooldzz = tcoolz+qhg*pi*deltaz/mdot/cp
+      end subroutine

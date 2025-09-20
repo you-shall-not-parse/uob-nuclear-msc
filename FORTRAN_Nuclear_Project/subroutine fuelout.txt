@@ -1,0 +1,5 @@
+      subroutine fuelout(tcladin,tfuelout,qhg)
+      implicit double precision (A-Z)
+      common /tfuel/ hg, df, kf, dh !kf and dh not used
+      tfuelout = tcladin+qhg/hg/df !Main Calculation
+      end subroutine

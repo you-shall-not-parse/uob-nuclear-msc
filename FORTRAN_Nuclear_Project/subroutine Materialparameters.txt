@@ -1,0 +1,15 @@
+      subroutine Materialparameters(kf,macro,Q,eric)
+      implicit double precision (A-Z)
+
+c These parameters are (mostly) common to either reactor type; both U02 Fuel.
+      rho = 10970.00 !Density of U02 (kg/m^3)
+      kf = 2.65 !Thermal conducitivity (Wm^-1k^-1)
+      micro = 580E-28 !Microscopic fission cross section for U-235 (Barns)
+      Q = 200E6*1.602E-19 !Avg. recoverable energy released per fission (eV) 
+      NA = 6.022E23 !Avogadro's constant (mol^-1)
+      MM = 0.27-0.003*eric !Molar mass (MM) for each U02 atom
+c     "eric" is the enrichment from the AGR and PWR subroutines
+      macMA = (micro*NA*eric*rho) !Breaking the formula down
+      macro = macMA/MM !Macroscopic cross section 
+
+      end subroutine

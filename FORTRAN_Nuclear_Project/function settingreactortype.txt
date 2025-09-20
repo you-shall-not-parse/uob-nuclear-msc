@@ -1,0 +1,38 @@
+      function settingreactortype(detlaz)
+      implicit double precision (A-Z)
+
+      character(len=3) sldreactor !stands for selected reactor
+      integer lines, nline
+      common /t_cool/ tin, mdot, cp, deltaz
+      common /tclad/ kc, claddia, hc
+      common /tfuel/ hg, df, kf, dh
+      common /lines/ nline !Need in the main program
+      common /materialparas/ Q, macro
+
+c Allowing the user to select the reactor type and error trap.
+ 23   write(*,'(/A/)') 'Select reactor by typing' //
+     & ' AGR or PWR (case sensitive):'
+      read *, sldreactor
+      if ((sldreactor.eq.'AGR').or.(sldreactor.eq.'PWR')) then
+         write (*,'(A,A)') 'You have selected: ', sldreactor
+      else if ((sldreactor.ne.'AGR').or.(sldreactor.eq.'PWR')) then
+         print *, 'Error: invalid input, please input AGR or PWR'
+         go to 23
+      end if
+
+c Subroutines to fetch operating parameters from the selected reactor.
+      if (sldreactor.eq.'AGR') then
+         call AGRparameters(maxz,mdot,cp,hc,tin,eric,df,dh,cth,kc,hg)
+      else if (sldreactor.eq.'PWR') then
+         call PWRparameters(maxz,mdot,cp,hc,tin,eric,df,dh,cth,kc,hg)
+      end if
+      claddia = cth*2+df !Gets the cladding diameter
+      deltaz = maxz/(nline-1) !Gets the step size
+
+c   This subroutine fetches material parameters (described within)
+      call Materialparameters(kf,macro,Q,eric)
+
+c Setting the function as the inlet temp and creating the coolant array.
+      settingreactortype = tin
+
+      end function

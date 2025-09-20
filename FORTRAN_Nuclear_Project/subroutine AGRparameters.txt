@@ -1,0 +1,37 @@
+      subroutine AGRparameters(maxz,mdot,cp,hc,tin,eric,df,dh,cth,kc,hg)
+      implicit none
+
+      character(len=1) change
+      double precision maxz, mdot, cp, hc, tin, eric, df, dh
+      double precision cth, kc, hg
+
+c The following parameters are applicable to AGRs.
+c  Coolant is CO2, cladding is Stainless Steel.
+      maxz = 8.0 !Total height of channel (meters)
+      cp = 1120.0 !Specific heat capacity (J/kgK)
+      hc = 1000.0 !Convective heat transfer coefficient (W/m^2K)
+      tin = 339.0 !Inlet coolant temperature (Degrees Celcius)
+      eric = 0.02 !Enrichment (2% of U-235)
+      df = 14.5E-3 !Outer diameter of fuel pellet (Meters)
+      dh = 6.0E-3 !Inner diameter of fuel pellet (Meters)
+      cth = 0.38E-3 !Cladding thickness (Meters)
+      kc = 18.0 !Thermal conductivity of cladding (W/m^2K)
+      hg = 4000.0 !Gap Conductance (W/m^2K)
+
+
+c Mass flow rate is a parameter that can be changed during operation 
+c (MCP switch). Therefore, an additional feature is to be added to allow
+c the user to alter this parameter within the running program.
+ 
+      write (*,'(/A/)') 'Would you like to change the mass flow rate'//
+     & ' per fuel channel from the default value? Default is 0.35kg/s'//
+     & ' *(type Y to change mass flow rate or N for no change)*'
+      read *, change
+      if ((change.eq.'Y').or.(change.eq.'y')) then
+      write (*,'(/A/)')'Input new mass flow rate in kg/s (with decimal)'
+         read *, mdot
+      else 
+         mdot = 0.35 !Mass flow rate per fuel channel (kg/s)
+      end if
+
+      end subroutine

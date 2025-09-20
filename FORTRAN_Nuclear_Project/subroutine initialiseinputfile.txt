@@ -1,0 +1,62 @@
+      subroutine initialiseinputfile(asize,flux,infname)
+      implicit none
+
+c This subroutine is designed to read user defined input flux file,
+c error trap, and then to assign the flux values to the 'flux' array.
+
+      integer ierr, nline, i, asize !asize parameter in main.f
+      character(len=256) infname !represents input file name
+      character(len=2) ta !represents try again
+      logical true
+      double precision flux(1:asize)
+
+c   Allow user to input the name of the flux file (with extension)
+ 21   write (*,'(/A/)') 'Enter flux filename with file extension(.txt):'
+      read *, infname
+
+c   Check the user specified input flux file exists and handles errors
+      inquire (file=infname, exist=true)
+      if (.not.true) then
+         write (*,*) 'Error: File is not in directory,' //
+     & ' try again? (type Y for Yes or N for No)' 
+      read *, ta
+ 
+c   Another 'if' to allow user to return to input file checking or exit
+         if ((ta.eq.'N').or.(ta.eq.'n')) then
+         stop 'Program closed'
+         else if ((ta.eq.'Y').or.(ta.eq.'y')) then
+         go to 21
+         end if
+       end if
+
+c   Find out how many lines are in the input flux file
+      open (11, file=infname, form='formatted', status='old')
+      nline = 0
+      do while(.true.)
+         read (11,*,iostat=ierr)
+         if (ierr.gt.0) then
+            stop 'Error: Issue with the input file'
+         else if (ierr.lt.0) then
+            exit
+         else
+            nline = nline + 1
+         end if
+      end do
+            if (nline.ne.asize) then
+            write (*,'(A,I4,A,I4,A)') 'Error: Input file has too' //
+     & ' many rows. You have', nline, ' lines which should'  //
+     & ' be', asize,', alter "asize" or file length and restart.'
+            stop
+            end if
+      close(11)
+
+c   Read the input flux file and assign to flux
+      open (11, file=infname, form='formatted', status='old')
+      do 10 i = 1, nline
+         read(11,*,iostat=ierr,end=22) flux
+ 10   continue
+ 22   close(11)
+      write (*,'(A,I4/)') 'Input flux file has been sucessfully read'//
+     & ', number of lines =', nline
+
+      end subroutine

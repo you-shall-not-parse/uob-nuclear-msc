@@ -1,0 +1,8 @@
+      subroutine writeout(z,T_A,T_B,T_C)
+      implicit double precision (A-Z)
+
+c This subroutine allows the user to specify the desired temperature
+c within the main program, hence the general temperature specifiers.
+      write(12,10) z,T_A,T_B,T_C
+ 10   format (1x,F5.2,T19,F7.2,T39,F7.2,T60,F7.2)
+      end subroutine

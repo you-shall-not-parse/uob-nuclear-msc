@@ -1,0 +1,5 @@
+      subroutine heightincrements(z,y)
+      implicit double precision (A-Z)
+      common /t_cool/ tin, mdot, cp, deltaz
+      y = z+deltaz
+      end subroutine

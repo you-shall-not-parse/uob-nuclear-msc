@@ -1,0 +1,7 @@
+      subroutine heatgen(fluxA,qhg)
+      implicit double precision (A-Z)
+      common /materialparas/ Q, macro
+      common /tfuel/ hg, df, kf, dh
+      aof = (df**2-dh**2)/4 !Gets the fuel area
+      qhg = Q*macro*aof*fluxA !Main Calculation
+      end subroutine

@@ -1,0 +1,320 @@
+      program main
+      implicit none
+
+c Define variables
+      integer asize, x, nline
+      character(len=20) outfname !represents the output file name
+      character(len=20) infname !represents input file name
+      parameter (asize=101) !Sets the maximum array size !!Can be changed
+
+c Generate arrays and define variables (from fuel outward)
+      double precision qhg(1:asize), z(1:asize) !Need to set z(1) to 0
+      double precision settingreactortype, deltaz
+      double precision tfuel_max(1:asize), tfuel_out(1:asize)
+      double precision tclad_in(1:asize), tclad_out(1:asize)
+      double precision t_cool(0:asize), flux(1:asize)
+      common /lines/ nline !shares the number of read lines from input file
+      z(1) = 0.0
+
+c Write program information
+      write (*,*) 'By Benjamin Crump for MSc PTNR Fortran Assessment'
+      write (*,'(/A,I4)') 'This program is designed to calculate,'//
+     & ' coolant, outer cladding, and maximum fuel temperatures as'//
+     & ' a function of position along an AGR or PWR fuel channel for'//
+     & ' a given flux profile of single column, double precision'//
+     & ' values of number of rows (which may be altered within the'//
+     & ' program) =', asize
+
+c Subroutine to read the input flux file and error trap. 
+      call initialiseinputfile(asize,flux,infname)
+
+c Initialise output file.
+      call initialiseoutputfile(outfname)
+
+c Function to allow the user to select the reactor, error trap the input, 
+c fetch the parameters for the selected reactor, fetch material parameters,
+c share correct parameters with calculation subroutines, and finally bring 
+c in the relevant inlet coolant temperature.
+      t_cool(0) = settingreactortype(deltaz)
+
+c Now doing the required calculations through a single subroutine.
+c Within that subroutine are further subroutines which caluclate the variables
+
+      do x = 1, nline !uses the counted number of lines and loops
+         call heightincrements(z(x),z(x+1)) !Sets the respective heights
+         call heatgen(flux(x),qhg(x)) !Gets the heat generation q'''
+         call coolanttemp(t_cool(x-1),t_cool(x),qhg(x)) !Gets the coolant temp
+         call claddingout(t_cool(x),tclad_out(x),qhg(x)) !Gets cladding out temp
+         call claddingin(tclad_out(x),tclad_in(x),qhg(x)) !Gets clad inner temp
+         call fuelout(tclad_in(x),tfuel_out(x),qhg(x)) !Gets fuel outer temp
+         call fuelint(tfuel_out(x),tfuel_max(x),qhg(x)) !Gets fuel max temp
+         call writeout(z(x),t_cool(x),tclad_out(x),tfuel_max(x)) !writes data
+      end do
+      close(12)
+      write(*,*)'File saved within directory under given name'
+      end program
+c-------------------------------------------------------------------------------
+      subroutine initialiseinputfile(asize,flux,infname)
+      implicit none
+
+c This subroutine is designed to read user defined input flux file,
+c error trap, and then to assign the flux values to the 'flux' array.
+
+      integer ierr, nline, i, asize, lines !asize parameter in main.f
+      character(len=256) infname !represents input file name
+      character(len=2) ta !represents try again
+      logical true
+      double precision flux(1:asize)
+      common /lines/ nline !can pass ths into other bit of program
+
+c   Allow user to input the name of the flux file (with extension)
+ 21   write (*,'(/A/)') 'Enter flux filename with file extension(.txt):'
+      read *, infname
+
+c   Check the user specified input flux file exists and handles errors
+      inquire (file=infname, exist=true)
+      if (.not.true) then
+         write (*,*) 'Error: File is not in directory,' //
+     & ' try again? (type Y for Yes or N for No)' 
+      read *, ta
+ 
+c   Another 'if' to allow user to return to input file checking or exit
+         if ((ta.eq.'N').or.(ta.eq.'n')) then
+         stop 'Program closed'
+         else if ((ta.eq.'Y').or.(ta.eq.'y')) then
+         go to 21
+         end if
+       end if
+
+c   Find out how many lines are in the input flux file
+      open (11, file=infname, form='formatted', status='old')
+      nline = 0
+      do while(.true.)
+         read (11,*,iostat=ierr)
+         if (ierr.gt.0) then
+            stop 'Error: Issue with the input file'
+         else if (ierr.lt.0) then
+            exit
+         else
+            nline = nline + 1
+         end if
+      end do
+            if (nline.ne.asize) then
+            write (*,'(A,I4,A,I4,A)') 'Error: Input file has too' //
+     & ' many rows. You have', nline, ' lines which should'  //
+     & ' be', asize,', alter "asize" or file length and restart.'
+            stop
+            end if
+      close(11)
+
+c   Read the input flux file and assign to flux
+      open (11, file=infname, form='formatted', status='old')
+      do 10 i = 1, nline
+         read(11,*,iostat=ierr,end=22) flux
+ 10   continue
+ 22   close(11)
+      write (*,'(A,I4/)') 'Input flux file has been sucessfully read'//
+     & ', number of lines =', nline
+
+      end subroutine
+c-------------------------------------------------------------------------------
+      subroutine initialiseoutputfile(outfname)
+      character(len=20) outfname
+      write (*,'(A/)') 'Enter the desired output filename with file' //
+     & ' extension (.txt or other desired) this file will contain' //
+     & ' the flux, height and associated temperature information:'
+      read *, outfname !allows user to specify name of output file
+      open (12, file=outfname, status='new', action='write')
+      write (12,*) 'Height (m)',' Coolant Temp (DegC)'
+     & ,' Outer Clad Temp (DegC)',' Max Fuel Temp (DegC)'!Writes the headers
+      end subroutine
+c-------------------------------------------------------------------------------
+      function settingreactortype(detlaz)
+      implicit double precision (A-Z)
+
+      character(len=3) sldreactor !stands for selected reactor
+      integer lines, nline
+      common /t_cool/ tin, mdot, cp, deltaz
+      common /tclad/ kc, claddia, hc
+      common /tfuel/ hg, df, kf, dh
+      common /lines/ nline !Need in the main program
+      common /materialparas/ Q, macro
+
+c Allowing the user to select the reactor type and error trap.
+ 23   write(*,'(/A/)') 'Select reactor by typing' //
+     & ' AGR or PWR (case sensitive):'
+      read *, sldreactor
+      if ((sldreactor.eq.'AGR').or.(sldreactor.eq.'PWR')) then
+         write (*,'(A,A)') 'You have selected: ', sldreactor
+      else if ((sldreactor.ne.'AGR').or.(sldreactor.eq.'PWR')) then
+         print *, 'Error: invalid input, please input AGR or PWR'
+         go to 23
+      end if
+
+c Subroutines to fetch operating parameters from the selected reactor.
+      if (sldreactor.eq.'AGR') then
+         call AGRparameters(maxz,mdot,cp,hc,tin,eric,df,dh,cth,kc,hg)
+      else if (sldreactor.eq.'PWR') then
+         call PWRparameters(maxz,mdot,cp,hc,tin,eric,df,dh,cth,kc,hg)
+      end if
+      claddia = cth*2+df !Gets the cladding diameter
+      deltaz = maxz/(nline-1) !Gets the step size
+
+c   This subroutine fetches material parameters (described within)
+      call Materialparameters(kf,macro,Q,eric)
+
+c Setting the function as the inlet temp and creating the coolant array.
+      settingreactortype = tin
+
+      end function
+c-------------------------------------------------------------------------------
+      subroutine AGRparameters(maxz,mdot,cp,hc,tin,eric,df,dh,cth,kc,hg)
+      implicit none
+
+      character(len=1) change
+      double precision maxz, mdot, cp, hc, tin, eric, df, dh
+      double precision cth, kc, hg
+
+c The following parameters are applicable to AGRs.
+c  Coolant is CO2, cladding is Stainless Steel.
+      maxz = 8.0 !Total height of channel (meters)
+      cp = 1120.0 !Specific heat capacity (J/kgK)
+      hc = 1000.0 !Convective heat transfer coefficient (W/m^2K)
+      tin = 339.0 !Inlet coolant temperature (Degrees Celcius)
+      eric = 0.02 !Enrichment (2% of U-235)
+      df = 14.5E-3 !Outer diameter of fuel pellet (Meters)
+      dh = 6.0E-3 !Inner diameter of fuel pellet (Meters)
+      cth = 0.38E-3 !Cladding thickness (Meters)
+      kc = 18.0 !Thermal conductivity of cladding (W/m^2K)
+      hg = 4000.0 !Gap Conductance (W/m^2K)
+
+
+c Mass flow rate is a parameter that can be changed during operation 
+c (MCP switch). Therefore, an additional feature is to be added to allow
+c the user to alter this parameter within the running program.
+ 
+      write (*,'(/A/)') 'Would you like to change the mass flow rate'//
+     & ' per fuel channel from the default value? Default is 0.35kg/s'//
+     & ' *(type Y to change mass flow rate or N for no change)*'
+      read *, change
+      if ((change.eq.'Y').or.(change.eq.'y')) then
+      write (*,'(/A/)')'Input new mass flow rate in kg/s (with decimal)'
+         read *, mdot
+      else 
+         mdot = 0.35 !Mass flow rate per fuel channel (kg/s)
+      end if
+
+      end subroutine
+c-------------------------------------------------------------------------------
+      subroutine PWRparameters(maxz,mdot,cp,hc,tin,eric,df,dh,cth,kc,hg)
+      implicit none
+
+      character(len=1) change
+      double precision maxz, mdot, cp, hc, tin, eric, df, dh
+      double precision cth, kc, hg
+
+c The following parameters are applicable to PWRs.
+c  Coolant is H20, cladding is Zircaloy.
+      maxz = 4.0 !Total height of channel (meters)
+      cp = 5500.0 !Specific heat capacity (J/kgK)
+      hc = 33000.0 !Convective heat transfer coefficient (W/m^2K)
+      tin = 292.0 !Inlet coolant temperature (Degrees Celcius)
+      eric = 0.04 !Enrichment (4% of U-235)
+      df = 9.0E-3 !Outer diameter of fuel pellet (Meters)
+      dh = 0.0 !Inner diameter of fuel pellet (Meters)
+      cth = 0.5E-3 !Cladding thickness (Meters)
+      kc = 14.0 !Thermal conductivity of cladding (W/m^2K)
+      hg = 4000.0 !Gap Conductance (W/m^2K)
+
+c Mass flow rate is a parameter that can be changed during operation 
+c (MCP switch). Therefore, an additional feature is to be added to allow
+c the user to alter this parameter within the running program.
+ 
+      write (*,'(/A/)') 'Would you like to change the mass flow rate'//
+     & ' per fuel channel from the default value? Default is 0.35kg/s'//
+     & ' *(type Y to change mass flow rate or N for no change)*'
+      read *, change
+      if ((change.eq.'Y').or.(change.eq.'y')) then
+      write (*,'(/A/)')'Input new mass flow rate in kg/s (with decimal)'
+         read *, mdot
+      else 
+         mdot = 0.35 !Mass flow rate per fuel channel (kg/s)
+      end if
+
+      end subroutine
+c-------------------------------------------------------------------------------
+      subroutine Materialparameters(kf,macro,Q,eric)
+      implicit double precision (A-Z)
+
+c These parameters are (mostly) common to either reactor type; both U02 Fuel.
+      rho = 10970.00 !Density of U02 (kg/m^3)
+      kf = 2.65 !Thermal conducitivity (Wm^-1k^-1)
+      micro = 580E-28 !Microscopic fission cross section for U-235 (Barns)
+      Q = 200E6*1.602E-19 !Avg. recoverable energy released per fission (eV) 
+      NA = 6.022E23 !Avogadro's constant (mol^-1)
+      MM = 0.27-0.003*eric !Molar mass (MM) for each U02 atom
+c     "eric" is the enrichment from the AGR and PWR subroutines
+      macMA = (micro*NA*eric*rho) !Breaking the formula down
+      macro = macMA/MM !Macroscopic cross section 
+      end subroutine
+c-------------------------------------------------------------------------------
+      subroutine heightincrements(z,y)
+      implicit double precision (A-Z)
+      common /t_cool/ tin, mdot, cp, deltaz
+      y = z+deltaz
+      end subroutine
+c-------------------------------------------------------------------------------
+      subroutine heatgen(fluxA,qhg)
+      implicit double precision (A-Z)
+      common /materialparas/ Q, macro
+      common /tfuel/ hg, df, kf, dh
+      aof = (df**2-dh**2)/4 !Gets the fuel area
+      qhg = Q*macro*aof*fluxA !Main Calculation
+      end subroutine
+c-------------------------------------------------------------------------------
+      subroutine coolanttemp(tcoolz,tcooldzz,qhg)
+      implicit double precision (A-Z)
+      parameter(pi=3.1459265)
+      common /t_cool/ tin, mdot, cp, deltaz
+      tcooldzz = tcoolz+qhg*pi*deltaz/mdot/cp
+      end subroutine
+c-------------------------------------------------------------------------------
+      subroutine claddingout(tcool,tcladout,qhg)
+      implicit double precision (A-Z)
+      common /tclad/ kc, claddia, hc !kc not used
+      tcladout = tcool+qhg/hc/claddia !Main Calculation
+      end subroutine
+c-------------------------------------------------------------------------------
+      subroutine claddingin(tcladout,tcladin,qhg)
+      implicit double precision (A-Z)
+      common /tclad/ kc, claddia, hc !hc not used
+      common /tfuel/ hg, df, kf, dh !Just df used
+      fuelouterminusinnerln = log(claddia/df)
+      tcladin = tcladout+qhg/(2.0*kc)*fuelouterminusinnerln !Main Calculation
+      end subroutine
+c-------------------------------------------------------------------------------
+      subroutine fuelout(tcladin,tfuelout,qhg)
+      implicit double precision (A-Z)
+      common /tfuel/ hg, df, kf, dh !kf and dh not used
+      tfuelout = tcladin+qhg/hg/df !Main Calculation
+      end subroutine
+c-------------------------------------------------------------------------------
+      subroutine fuelint(tfuelout,tfuelmax,qhg)
+      implicit double precision (A-Z)
+      common /tfuel/ hg, df, kf, dh !hg not used
+      if (dh.ne.0.0) then !Avoid dividing by 0 within the log (would be INF)
+         dhdfprevent = dh**2/(df**2-dh**2)*log(df/dh)
+      else
+         dhdfprevent = 0
+      end if
+      tfuelmax = tfuelout-0.5*(dhdfprevent-0.5)*qhg/kf !Main Calculation
+      end subroutine
+c-------------------------------------------------------------------------------
+      subroutine writeout(z,T_A,T_B,T_C)
+      implicit double precision (A-Z)
+
+c This subroutine allows the user to specify the desired temperature
+c within the main program, hence the general temperature specifiers.
+      write(12,10) z,T_A,T_B,T_C
+ 10   format (1x,F5.2,T19,F7.2,T39,F7.2,T60,F7.2)
+      end subroutine
